@@ -8,7 +8,7 @@ from torch.nn.utils import clip_grad
 from ..dist_utils import allreduce_grads
 from ..fp16_utils import LossScaler, wrap_fp16_model
 from .hook import HOOKS, Hook
-
+from apex import amp
 
 @HOOKS.register_module()
 class OptimizerHook(Hook):
@@ -24,7 +24,8 @@ class OptimizerHook(Hook):
 
     def after_train_iter(self, runner):
         runner.optimizer.zero_grad()
-        runner.outputs['loss'].backward()
+        with amp.scale_loss(runner.outputs['loss'], runner.optimizer) as scaled_loss:
+            scaled_loss.backward()
         if self.grad_clip is not None:
             grad_norm = self.clip_grads(runner.model.parameters())
             if grad_norm is not None:
